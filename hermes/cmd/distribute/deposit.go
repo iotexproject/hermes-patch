@@ -11,7 +11,6 @@ import (
 	"log"
 	"math/big"
 	"net/http"
-	"os"
 	"strings"
 	"sync"
 	"time"
@@ -119,7 +118,8 @@ func (s *accountSender) send() {
 			if ignore {
 				if strings.HasSuffix(err.Error(), "insufficient funds for gas * price + value") {
 					s.notifier.SendMessage(fmt.Sprintf("Deposit %d error: %v", record.ID, err))
-					os.Exit(1)
+					time.Sleep(30 * time.Minute)
+					break
 				}
 				if !strings.HasSuffix(err.Error(), "exceeds block gas limit") {
 					log.Printf("add deposit %d with ignore error: %v\n", record.ID, err)
