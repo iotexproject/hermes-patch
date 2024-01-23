@@ -361,15 +361,9 @@ func (s *Sender) Send() {
 }
 
 // NewSender new sender instance
-func NewSender(notifier *Notifier) (*Sender, error) {
-	pwd := util.MustFetchNonEmptyParam("VAULT_PASSWORD")
-	acc, err := util.GetAccount("./sender/.sender.json", pwd)
-	if err != nil {
-		return nil, err
-	}
-
+func NewSender(notifier *Notifier, accounts []account.Account) (*Sender, error) {
 	return &Sender{
-		Accounts: []account.Account{acc},
+		Accounts: accounts,
 		Notifier: notifier,
 	}, nil
 }

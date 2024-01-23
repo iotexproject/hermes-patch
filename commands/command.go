@@ -10,5 +10,7 @@ func Commonds() []*cli.Command {
 	return []*cli.Command{
 		reward.NewClaimer().Command(),
 		NewTransfer().Command(),
+		NewReward().Command(),
+		NewSender().Command(),
 	}
 }
