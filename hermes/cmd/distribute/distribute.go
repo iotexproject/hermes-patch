@@ -288,7 +288,7 @@ func getDistribution(c iotex.AuthedClient) (*big.Int, *big.Int, []*DistributionI
 	fmt.Printf("Distribution Start Epoch: %d\n", startEpoch)
 	fmt.Printf("Distribution End Epoch: %d\n", endEpoch)
 
-	rewardAddress := c.Account().Address().String()
+	rewardAddress := util.MustFetchNonEmptyParam("VAULT_ADDRESS")
 	epochCount := endEpoch - startEpoch + 1
 	distributions, err := GetBookkeeping(c, startEpoch, epochCount, rewardAddress)
 	if err != nil {
