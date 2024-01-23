@@ -72,3 +72,24 @@ func SaveClaimedEpoch(epoch uint64) {
 	data := []byte(fmt.Sprintf("%d", epoch))
 	os.WriteFile("./epoch", data, 0644)
 }
+
+func ReadAccount() (account.Account, error) {
+	password, err := os.ReadFile("./pass")
+	if err != nil {
+		return nil, fmt.Errorf("read password error: %v", err)
+	}
+
+	data, err := os.ReadFile("./key")
+	if err != nil {
+		return nil, fmt.Errorf("read keystore error: %v", err)
+	}
+	key, err := keystore.DecryptKey(data, string(password))
+	if err != nil {
+		return nil, fmt.Errorf("decrypt keystore error: %v", err)
+	}
+	pk, err := crypto.BytesToPrivateKey(ethCrypto.FromECDSA(key.PrivateKey))
+	if err != nil {
+		return nil, fmt.Errorf("decrypt private key error: %v", err)
+	}
+	return account.PrivateKeyToAccount(pk)
+}

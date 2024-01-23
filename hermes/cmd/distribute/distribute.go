@@ -20,6 +20,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/iotexproject/go-pkgs/hash"
 	"github.com/iotexproject/iotex-address/address"
+	"github.com/iotexproject/iotex-antenna-go/v2/account"
 	"github.com/iotexproject/iotex-antenna-go/v2/iotex"
 	"github.com/iotexproject/iotex-proto/golang/iotexapi"
 	"github.com/jinzhu/gorm"
@@ -40,7 +41,7 @@ var DistributeCmd = &cobra.Command{
 	Args:  cobra.MinimumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cmd.SilenceUsage = true
-		return Reward(nil, nil, 0, nil)
+		return Reward(nil, nil, nil, 0, nil)
 	},
 }
 
@@ -53,20 +54,11 @@ type DistributionInfo struct {
 }
 
 // Reward distribute reward to voter group by delegate
-func Reward(notifier *Notifier, lastDeposit *big.Int, lastEpoch uint64, sender address.Address) error {
-	pwd := util.MustFetchNonEmptyParam("VAULT_PASSWORD")
-	account, err := util.GetVaultAccount(pwd)
-	if err != nil {
-		return err
-	}
-	// verify the account matches the reward address
-	if account.Address().String() != util.MustFetchNonEmptyParam("VAULT_ADDRESS") {
-		return fmt.Errorf("key and address do not match")
-	}
-
+func Reward(notifier *Notifier, acc account.Account, lastDeposit *big.Int, lastEpoch uint64, sender address.Address) error {
 	tls := util.MustFetchNonEmptyParam("RPC_TLS")
 	endpoint := util.MustFetchNonEmptyParam("IO_ENDPOINT")
 	var conn *grpc.ClientConn
+	var err error
 
 	if tls == "true" {
 		conn, err = iotex.NewDefaultGRPCConn(endpoint)
@@ -80,7 +72,7 @@ func Reward(notifier *Notifier, lastDeposit *big.Int, lastEpoch uint64, sender a
 		}
 	}
 	defer conn.Close()
-	c := iotex.NewAuthedClient(iotexapi.NewAPIServiceClient(conn), 1, account)
+	c := iotex.NewAuthedClient(iotexapi.NewAPIServiceClient(conn), 1, acc)
 
 	// query GraphQL to get the distribution list
 	endEpoch, tip, distributions, err := getDistribution(c)
@@ -186,13 +178,13 @@ func Reward(notifier *Notifier, lastDeposit *big.Int, lastEpoch uint64, sender a
 		return err
 	}
 
-	acc, err := c.API().GetAccount(context.Background(), &iotexapi.GetAccountRequest{
+	accountInfo, err := c.API().GetAccount(context.Background(), &iotexapi.GetAccountRequest{
 		Address: c.Account().Address().String(),
 	})
 	if err != nil {
 		return err
 	}
-	balance, _ := new(big.Int).SetString(acc.AccountMeta.Balance, 10)
+	balance, _ := new(big.Int).SetString(accountInfo.AccountMeta.Balance, 10)
 	if balance.Cmp(total) < 0 {
 		fmt.Printf("Account balance less than compound rewards: %s < %s\n", balance.String(), total.String())
 		if notifier != nil {
