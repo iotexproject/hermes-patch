@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"syscall"
+	"os"
 	"time"
 
 	"github.com/iotexproject/iotex-address/address"
@@ -12,7 +12,6 @@ import (
 	"github.com/iotexproject/iotex-antenna-go/v2/iotex"
 	"github.com/iotexproject/iotex-proto/golang/iotexapi"
 	"github.com/urfave/cli/v2"
-	"golang.org/x/term"
 	"google.golang.org/grpc"
 
 	"github.com/ququzone/hermes-patch/hermes/cmd/dao"
@@ -33,18 +32,19 @@ func (c *Reward) Command() *cli.Command {
 		Name:    "reward",
 		Aliases: []string{"r"},
 		Flags: []cli.Flag{
-			&cli.BoolFlag{
+			&cli.StringFlag{
 				Name:     "password",
-				Aliases:  []string{"P"},
-				Usage:    "password",
+				Aliases:  []string{"p"},
+				Usage:    "password file path",
 				Required: true,
-				Action: func(ctx *cli.Context, p bool) error {
-					if p {
-						password, err := term.ReadPassword(int(syscall.Stdin))
-						if err != nil {
-							return fmt.Errorf("read password error: %v", err)
-						}
-						c.password = string(password)
+				Action: func(ctx *cli.Context, s string) error {
+					data, err := os.ReadFile(s)
+					if err != nil {
+						return fmt.Errorf("read password file error: %v", err)
+					}
+					c.password = string(data)
+					if err := os.Remove(s); err != nil {
+						return fmt.Errorf("remove password file error: %v", err)
 					}
 					return nil
 				},
