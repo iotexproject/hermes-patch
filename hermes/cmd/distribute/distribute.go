@@ -513,12 +513,18 @@ func GetBookkeeping(c iotex.AuthedClient, startEpoch uint64, epochCount uint64, 
 	httpClient := oauth2.NewClient(context.Background(), src)
 	gqlClient := graphql.NewClient(analyticsEndpoint, httpClient)
 
+	addresses := strings.Split(rewardAddress, ",")
+	queryAddresses := make([]graphql.String, len(addresses))
+	for i := 0; i < len(addresses); i++ {
+		queryAddresses[i] = graphql.String(addresses[i])
+	}
+
 	// make sure every epoch does not miss hermes info
 	for epoch := startEpoch; epoch < startEpoch+epochCount; epoch++ {
 		tempVariables := map[string]interface{}{
 			"startEpoch":    graphql.Int(epoch),
 			"epochCount":    graphql.Int(1),
-			"rewardAddress": graphql.String(rewardAddress),
+			"rewardAddress": queryAddresses,
 		}
 		var tempOutput query
 		if err := gqlClient.Query(context.Background(), &tempOutput, tempVariables); err != nil {
@@ -532,7 +538,7 @@ func GetBookkeeping(c iotex.AuthedClient, startEpoch uint64, epochCount uint64, 
 	variables := map[string]interface{}{
 		"startEpoch":    graphql.Int(startEpoch),
 		"epochCount":    graphql.Int(epochCount),
-		"rewardAddress": graphql.String(rewardAddress),
+		"rewardAddress": queryAddresses,
 	}
 	var output query
 	if err := gqlClient.Query(context.Background(), &output, variables); err != nil {
