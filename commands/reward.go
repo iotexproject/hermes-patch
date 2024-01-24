@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"syscall"
 	"time"
 
 	"github.com/iotexproject/iotex-address/address"
@@ -11,6 +12,7 @@ import (
 	"github.com/iotexproject/iotex-antenna-go/v2/iotex"
 	"github.com/iotexproject/iotex-proto/golang/iotexapi"
 	"github.com/urfave/cli/v2"
+	"golang.org/x/term"
 	"google.golang.org/grpc"
 
 	"github.com/ququzone/hermes-patch/hermes/cmd/dao"
@@ -19,6 +21,7 @@ import (
 )
 
 type Reward struct {
+	password string
 }
 
 func NewReward() *Reward {
@@ -29,6 +32,24 @@ func (c *Reward) Command() *cli.Command {
 	return &cli.Command{
 		Name:    "reward",
 		Aliases: []string{"r"},
+		Flags: []cli.Flag{
+			&cli.BoolFlag{
+				Name:     "password",
+				Aliases:  []string{"P"},
+				Usage:    "password",
+				Required: true,
+				Action: func(ctx *cli.Context, p bool) error {
+					if p {
+						password, err := term.ReadPassword(int(syscall.Stdin))
+						if err != nil {
+							return fmt.Errorf("read password error: %v", err)
+						}
+						c.password = string(password)
+					}
+					return nil
+				},
+			},
+		},
 		Action: func(ctx *cli.Context) error {
 			tls := util.MustFetchNonEmptyParam("RPC_TLS")
 			endpoint := util.MustFetchNonEmptyParam("IO_ENDPOINT")
@@ -51,7 +72,7 @@ func (c *Reward) Command() *cli.Command {
 			if err != nil {
 				log.Fatalf("new empty account error: %v\n", err)
 			}
-			c := iotex.NewAuthedClient(iotexapi.NewAPIServiceClient(conn), 1, emptyAccount)
+			client := iotex.NewAuthedClient(iotexapi.NewAPIServiceClient(conn), 1, emptyAccount)
 
 			err = dao.ConnectDatabase()
 			if err != nil {
@@ -63,14 +84,14 @@ func (c *Reward) Command() *cli.Command {
 				log.Fatalf("new notifier error: %v\n", err)
 			}
 
-			acc, err := util.ReadAccount()
+			acc, err := util.ReadAccount(c.password)
 			if err != nil {
 				log.Fatalf("read account error: %v\n", err)
 			}
 
 			retry := 0
 			for {
-				lastEndEpoch, err := distribute.GetLastEndEpoch(c)
+				lastEndEpoch, err := distribute.GetLastEndEpoch(client)
 				if err != nil {
 					log.Printf("get last end epoch error: %v\n", err)
 					retry++
@@ -79,7 +100,7 @@ func (c *Reward) Command() *cli.Command {
 				}
 				startEpoch := lastEndEpoch + 1
 
-				resp, err := c.API().GetChainMeta(context.Background(), &iotexapi.GetChainMetaRequest{})
+				resp, err := client.API().GetChainMeta(context.Background(), &iotexapi.GetChainMetaRequest{})
 				if err != nil {
 					log.Printf("get chain meta error: %v\n", err)
 					retry++
@@ -91,7 +112,7 @@ func (c *Reward) Command() *cli.Command {
 				endEpoch := startEpoch + 23
 
 				if endEpoch+2 > curEpoch {
-					resp, err := c.API().GetChainMeta(context.Background(), &iotexapi.GetChainMetaRequest{})
+					resp, err := client.API().GetChainMeta(context.Background(), &iotexapi.GetChainMetaRequest{})
 					if err != nil {
 						log.Printf("get chain meta error: %v\n", err)
 						retry++

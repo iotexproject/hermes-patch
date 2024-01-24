@@ -73,17 +73,12 @@ func SaveClaimedEpoch(epoch uint64) {
 	os.WriteFile("./epoch", data, 0644)
 }
 
-func ReadAccount() (account.Account, error) {
-	password, err := os.ReadFile("./pass")
-	if err != nil {
-		return nil, fmt.Errorf("read password error: %v", err)
-	}
-
+func ReadAccount(password string) (account.Account, error) {
 	data, err := os.ReadFile("./key")
 	if err != nil {
 		return nil, fmt.Errorf("read keystore error: %v", err)
 	}
-	key, err := keystore.DecryptKey(data, string(password))
+	key, err := keystore.DecryptKey(data, password)
 	if err != nil {
 		return nil, fmt.Errorf("decrypt keystore error: %v", err)
 	}
