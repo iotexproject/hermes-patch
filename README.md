@@ -7,3 +7,9 @@ IoTeX hermes patcher
 go mod download
 go build .
 ```
+
+## Run
+
+```
+./hermes-patch -h
+```
