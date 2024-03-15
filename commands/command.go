@@ -12,5 +12,6 @@ func Commonds() []*cli.Command {
 		NewTransfer().Command(),
 		NewReward().Command(),
 		NewSender().Command(),
+		NewMerge().Command(),
 	}
 }

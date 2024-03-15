@@ -53,6 +53,64 @@ type DistributionInfo struct {
 	AmountList    []*big.Int
 }
 
+func Merge(notifier *Notifier, acc account.Account, sender address.Address, previous *big.Int) error {
+	tls := util.MustFetchNonEmptyParam("RPC_TLS")
+	endpoint := util.MustFetchNonEmptyParam("IO_ENDPOINT")
+	var conn *grpc.ClientConn
+	var err error
+
+	if tls == "true" {
+		conn, err = iotex.NewDefaultGRPCConn(endpoint)
+		if err != nil {
+			return err
+		}
+	} else {
+		conn, err = iotex.NewGRPCConnWithoutTLS(endpoint)
+		if err != nil {
+			return err
+		}
+	}
+	defer conn.Close()
+	c := iotex.NewAuthedClient(iotexapi.NewAPIServiceClient(conn), 1, acc)
+
+	total, err := mergeCompound()
+	if err != nil {
+		return err
+	}
+
+	total = new(big.Int).Add(total, previous)
+	accountInfo, err := c.API().GetAccount(context.Background(), &iotexapi.GetAccountRequest{
+		Address: c.Account().Address().String(),
+	})
+	if err != nil {
+		return err
+	}
+	balance, _ := new(big.Int).SetString(accountInfo.AccountMeta.Balance, 10)
+	if balance.Cmp(total) < 0 {
+		fmt.Printf("Account balance less than compound rewards: %s < %s\n", balance.String(), total.String())
+		if notifier != nil {
+			notifier.SendMessage(fmt.Sprintf("Account balance less than compound rewards: %s < %s", balance.String(), total.String()))
+		}
+		total = new(big.Int).Sub(balance, big.NewInt(1000000000000000000))
+	}
+	hash, _ := c.Transfer(sender, total).SetGasPrice(big.NewInt(1000000000000)).SetGasLimit(10000).Call(context.Background())
+	if notifier != nil {
+		notifier.SendMessage(fmt.Sprintf("transfer %s to compound sender with hash: %s", total.String(), hex.EncodeToString(hash[:])))
+	}
+	time.Sleep(20 * time.Second)
+	err = checkActionReceipt(c, hash)
+	if err != nil {
+		if notifier != nil {
+			notifier.SendMessage(fmt.Sprintf("send transfer sender action %s error: %v", hex.EncodeToString(hash[:]), err))
+		}
+	}
+
+	if notifier != nil {
+		notifier.SendMessage("Complete merge hermes rewards")
+	}
+	return nil
+}
+
 // Reward distribute reward to voter group by delegate
 func Reward(notifier *Notifier, acc account.Account, lastDeposit *big.Int, lastEpoch uint64, sender address.Address) error {
 	tls := util.MustFetchNonEmptyParam("RPC_TLS")
