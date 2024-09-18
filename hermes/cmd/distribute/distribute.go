@@ -23,12 +23,14 @@ import (
 	"github.com/iotexproject/iotex-antenna-go/v2/account"
 	"github.com/iotexproject/iotex-antenna-go/v2/iotex"
 	"github.com/iotexproject/iotex-proto/golang/iotexapi"
+	"github.com/iotexproject/iotex-proto/golang/iotextypes"
 	"github.com/jinzhu/gorm"
 	"github.com/pkg/errors"
 	"github.com/shurcooL/graphql"
 	"github.com/spf13/cobra"
 	"golang.org/x/oauth2"
 	"google.golang.org/grpc"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/ququzone/hermes-patch/hermes/cmd/dao"
 	"github.com/ququzone/hermes-patch/hermes/util"
@@ -639,7 +641,14 @@ func GetBookkeeping(c iotex.AuthedClient, startEpoch uint64, epochCount uint64, 
 		// fmt.Printf("Delegate Name: %s, Service Fee: %s, Refund: %s\n", string(hermesDistribution.DelegateName),
 		// 	serviceFee.String(), refund.String())
 
-		delegateIotexStakingAddr := string(hermesDistribution.StakingIotexAddress)
+		delegate, err := GetDelegate(c, string(hermesDistribution.DelegateName))
+		if err != nil {
+			return nil, errors.Errorf("get delegate error: %v", err)
+		}
+		if delegate == nil {
+			return nil, errors.Errorf("can't get delegate %s", string(hermesDistribution.DelegateName))
+		}
+		delegateIotexStakingAddr := delegate.OwnerAddress
 		if _, ok := distributionMap[delegateIotexStakingAddr]; !ok {
 			distributionMap[delegateIotexStakingAddr] = refund
 		} else {
@@ -848,4 +857,41 @@ func checkActionReceipt(c iotex.AuthedClient, hash hash.Hash256) error {
 	}
 	fmt.Printf("action %x check receipt not found\n", hash)
 	return err
+}
+
+func GetDelegate(c iotex.AuthedClient, name string) (*iotextypes.CandidateV2, error) {
+	method := &iotexapi.ReadStakingDataMethod{
+		Method: iotexapi.ReadStakingDataMethod_CANDIDATE_BY_NAME,
+	}
+	methodBytes, err := proto.Marshal(method)
+	if err != nil {
+		return nil, err
+	}
+	arguments := &iotexapi.ReadStakingDataRequest{
+		Request: &iotexapi.ReadStakingDataRequest_CandidateByName_{
+			CandidateByName: &iotexapi.ReadStakingDataRequest_CandidateByName{
+				CandName: name,
+			},
+		},
+	}
+	argumentsBytes, err := proto.Marshal(arguments)
+	if err != nil {
+		return nil, err
+	}
+	request := &iotexapi.ReadStateRequest{
+		ProtocolID: []byte("staking"),
+		MethodName: methodBytes,
+		Arguments:  [][]byte{argumentsBytes},
+	}
+	response, err := c.API().ReadState(context.Background(), request)
+	if err != nil {
+		return nil, err
+	}
+
+	var result iotextypes.CandidateV2
+	if err := proto.Unmarshal(response.Data, &result); err != nil {
+		return nil, err
+	}
+
+	return &result, nil
 }
